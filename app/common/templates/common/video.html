@@ -1,0 +1,307 @@
+{% extends 'common/base.html' %}
+
+{% block content %}
+{% load static %}
+
+<body id="id" class="app-blank" style="background-image: url('{% static "assets/media/demo/2600x1200/bg-10.png"%}');">
+    <div class="flex" id="kt_app_root">
+        <div class="d-flex flex-column flex-lg-row flex-column-fluid">
+            <div class="d-flex flex-center flex-column flex-lg-row-fluid items-center justify-center mt-20">
+                <div class="card w-lg-400px p-10 mb-10 " style="overflow: hidden; position: relative;">
+                    <form class="form w-100" novalidate="novalidate" id="employee_compare_form" method="POST" action="{% url 'employee_compare' %}">
+                        {% csrf_token %}
+                    
+                        <div class="video-container mb-8 mt-0" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
+                            <canvas id="canvas" class="rounded" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -47%) rotate(360deg) scaleX(-1);"></canvas>
+                        </div>
+                        <div class="smile" id="smile"></div>
+
+                        <!-- Time, Date, and Location Section -->
+                        <div class="info-section mt-4" style="color:red;">
+                            <p id="info"></p>
+                        </div>
+                        
+                        <input type="hidden" name="captured_image" id="captured_image">
+                        <div class="spacer" style="height: 140px;"></div>
+                        <div class="p-8">
+                            <div class="fv-row mb-8">
+                                <input placeholder="Enter your phone number" name="phone" type="tel" class="form-control bg-transparent hover-input" maxlength="10"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '')" required />
+                                <div id="phone_error" class="text-danger mt-1" style="display: none;">Please enter a valid 10-digit phone number.</div>
+                                <div id="camera_error" class="text-danger mt-1" style="display: none;">Camera access is required.</div>
+                            </div>
+                            <div class="d-grid mb-10">
+                                <button type="button" id="capture_button" class="btn btn-primary hover-input">
+                                    Continue
+                                </button>
+                            </div>
+                         
+                            <div class="text-gray-500 text-center fw-semibold fs-6">
+                                <a href="{% url 'employee_signup' %}" class="link-primary fw-semibold hover-input">Signup as Employee</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <style>
+        .smile {
+            width: 82%;
+            left: 50%;
+            border: 2px dashed white;
+            position: absolute;
+            transform: translate(-50%, -60%);
+            z-index: 999;
+            height: 35vh;
+            top: 34%;
+        }
+        video {
+            filter: brightness(1); /* Default brightness value */
+        }
+        .info-section {
+            position: absolute;
+            top: 300px;  /* Adjust the position as needed */
+            left: 15px; /* Adjust the position as needed */
+            color: white;  /* Change the text color */
+            padding: 3px;  /* Add padding for better layout */
+            border-radius: 5px;  /* Optional: Rounded corners */
+            z-index: 1000;  /* Ensure it is above other elements */
+           
+        }
+        
+     
+        
+    </style>
+    <script>
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+        let video;
+        let cameraAccessGranted = false;
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then((stream) => {
+                video = document.createElement("video");
+                video.srcObject = stream;
+                video.play();
+
+                video.style.filter = "brightness(1)"; // Default brightness value
+
+                video.addEventListener("loadedmetadata", () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    drawVideoToCanvas(video);
+                });
+
+                cameraAccessGranted = true;
+            })
+            .catch((err) => {
+                console.warn("Camera access denied or unavailable: ", err);
+                context.fillText("Camera not available.", 10, 50);
+                cameraAccessGranted = false;
+            });
+
+        function drawVideoToCanvas(video) {
+            function render() {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    adjustBrightness();
+                }
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        function analyzeImage(imageData) {
+            const data = imageData.data;
+            let totalBrightness = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const brightness = (r + g + b) / 3;
+                totalBrightness += brightness;
+            }
+            const averageBrightness = totalBrightness / (data.length / 4); // Average brightness set
+            return averageBrightness;
+        }
+
+        function calculateAdjustmentFactor(averageBrightness) {
+            const minBrightness = 0; // Minimum brightness value
+            const maxBrightness = 255; // Maximum brightness value
+            const minFactor = 0.5; // Minimum adjustment factor
+            const maxFactor = 1.5; // Maximum adjustment factor
+            const normalizedBrightness = (averageBrightness - minBrightness) / (maxBrightness - minBrightness);
+            const adjustmentFactor = (maxFactor - minFactor) * normalizedBrightness + minFactor;
+            return adjustmentFactor;
+        }
+
+        function adjustBrightness() {
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const averageBrightness = analyzeImage(imageData);
+            const adjustmentFactor = calculateAdjustmentFactor(averageBrightness);
+            video.style.filter = `brightness(${adjustmentFactor})`;
+        }
+
+        function getLocation() {
+            console.log("getLocation called"); // Add this
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                document.getElementById("info").innerHTML = "Geolocation is not supported by this browser.";
+            }
+        }
+        
+        function showPosition(position) {
+            console.log("showPosition called"); // Add this
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            const now = new Date();
+            const dateString = now.toLocaleDateString();
+            const timeString = now.toLocaleTimeString();
+         //   document.getElementById("info").innerHTML = ` ${dateString},  ${timeString},  ${latitude},  ${longitude}`;
+         fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+         .then(response => response.json())
+         .then(data => {
+             const address = data.address || {};
+             const streetName = address.road || 'Street not available';
+             const placeName = address.city || address.town || address.village || 'Place not available';
+ 
+             // Display date, time, and the extracted street and place name
+             document.getElementById("info").innerHTML = ` ${dateString},  ${timeString},${streetName},${placeName}`;
+         })
+         .catch(error => {
+             console.error("Error fetching place name:", error);
+             document.getElementById("info").innerHTML = `Date: ${dateString}, Time: ${timeString}, Street: Not available, Place: Not available`;
+         });                                                   
+        }
+        
+        function showError(error) {
+            console.log("showError called"); // Add this
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    document.getElementById("info").innerHTML = "User denied the request for Geolocation.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    document.getElementById("info").innerHTML = "Location information is unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    document.getElementById("info").innerHTML = "The request to get user location timed out.";
+                    break;
+                case error.UNKNOWN_ERROR:
+                    document.getElementById("info").innerHTML = "An unknown error occurred.";
+                    break;
+            }
+        }
+        
+        function displayDateTime() {
+            console.log("displayDateTime called"); // Add this
+            const now = new Date();
+            const dateString = now.toLocaleDateString();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById("info").innerHTML = `Date: ${dateString}, Time: ${timeString}`;
+        }
+        
+        // Call these functions to display date, time, and location
+        displayDateTime();
+        getLocation();
+        
+        document.getElementById("capture_button").addEventListener("click", (event) => {
+            const phoneInput = document.querySelector('input[name="phone"]');
+            const phoneNumber = phoneInput.value.trim();
+            const phoneError = document.getElementById("phone_error");
+            const cameraError = document.getElementById("camera_error");
+
+            const phoneRegex = /^(0|91)?[6-9][0-9]{9}$/;
+
+            if (!phoneNumber) {
+                phoneError.style.display = "block";
+                phoneError.textContent = "Phone number is required.";
+            } else if (!phoneRegex.test(phoneNumber)) {
+                phoneError.style.display = "block";
+                phoneError.textContent = "Please enter a valid 10-digit phone number.";
+            } else {
+                phoneError.style.display = "none";
+            }
+
+            if (!cameraAccessGranted) {
+                cameraError.style.display = "block";
+                cameraError.textContent = "Camera access is required.";
+            } else {
+                cameraError.style.display = "none";
+            }
+
+            if (phoneRegex.test(phoneNumber) && cameraAccessGranted) {
+                const smile = document.getElementById("smile");
+                const rect = smile.getBoundingClientRect();
+                const scaleX = canvas.width / canvas.getBoundingClientRect().width;
+                const scaleY = canvas.height / canvas.getBoundingClientRect().height;
+                const x = (rect.left - canvas.getBoundingClientRect().left) * scaleX;
+                const y = (rect.top - canvas.getBoundingClientRect().top) * scaleY;
+                const width = rect.width * scaleX;
+                const height = rect.height * scaleY;
+
+                const imageData = context.getImageData(x, y, width, height);
+
+                const newCanvas = document.createElement("canvas");
+                newCanvas.width = width;
+                newCanvas.height = height;
+                const newContext = newCanvas.getContext("2d");
+                newContext.putImageData(imageData, 0, 0);
+
+                const dataUrl = newCanvas.toDataURL("image/png");
+                document.getElementById("captured_image").value = dataUrl;
+
+                // Send the form data using AJAX
+                const formData = new FormData(document.getElementById("employee_compare_form"));
+                                fetch("{% url 'employee_compare' %}", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: `${data.message}. Welcome, ${data.name}!`,
+                            icon: 'success',
+                            confirmButtonText: 'OK',
+                            customClass: {
+                                confirmButton: 'btn btn-primary'
+                            }
+                        });
+                    } else if (data.error) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: data.error,
+                            icon: 'error',
+                            confirmButtonText: 'OK',
+                            customClass: {
+                                confirmButton: 'btn btn-danger'
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'An unexpected error occurred.',
+                        icon: 'error',
+                        confirmButtonText: 'OK',
+                        customClass: {
+                            confirmButton: 'btn btn-danger'
+                        }
+                    });
+                });
+            }
+        });
+
+      
+    </script>
+</body>
+{% endblock %}
+
