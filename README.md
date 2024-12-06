@@ -29,8 +29,8 @@ Before running the project, make sure you have the following installed:
 - Django 3.x+
 - AWS Account with Rekognition and S3 access
 - `boto3` (AWS SDK for Python) installed
-- `django-storages` for integrating S3 storage in Django
-- `opencv-python` for handling image capture
+
+
 
  Install the required Python packages:
 
