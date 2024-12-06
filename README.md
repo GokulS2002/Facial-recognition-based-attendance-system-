@@ -32,7 +32,5 @@ Before running the project, make sure you have the following installed:
 - `django-storages` for integrating S3 storage in Django
 - `opencv-python` for handling image capture
 
-To install the required Python packages:
+ Install the required Python packages:
 
-```bash
-pip install -r requirements.txt
